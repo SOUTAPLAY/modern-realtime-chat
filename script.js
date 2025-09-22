@@ -1,517 +1,256 @@
-// DOM要素の取得
-const elements = {
-    // 接続関連
-    connectionPanel: document.getElementById('connectionPanel'),
-    chatArea: document.getElementById('chatArea'),
-    nameInput: document.getElementById('nameInput'),
-    roomInput: document.getElementById('roomInput'),
-    joinButton: document.getElementById('joinButton'),
-    leaveButton: document.getElementById('leaveButton'),
-    visibilityToggle: document.getElementById('visibilityToggle'),
-    privateCheckbox: document.getElementById('privateCheckbox'),
-    passwordInput: document.getElementById('passwordInput'),
-    passwordGroup: document.getElementById('passwordGroup'),
-    
-    // チャット関連
-    currentRoom: document.getElementById('currentRoom'),
-    currentUser: document.getElementById('currentUser'),
-    userCount: document.getElementById('userCount'),
-    inputText1: document.getElementById('inputText1'),
-    inputText2: document.getElementById('inputText2'),
-    messageDisplay1: document.getElementById('messageDisplay1'),
-    messageDisplay2: document.getElementById('messageDisplay2'),
-    
-    // オンライン情報
-    onlineUsers: document.getElementById('onlineUsers'),
-    onlineRooms: document.getElementById('onlineRooms'),
-    roomUsers: document.getElementById('roomUsers'),
-    
-    // テーマ関連
-    themeToggle: document.getElementById('themeToggle'),
-    themeIcon: document.querySelector('.theme-icon')
-};
+/* Socket.IO クライアント */
+const socket = io();
 
-// アプリケーションの状態
-const state = {
-    socket: null,
-    currentRoom: '',
-    username: '',
-    isConnected: false,
-    isDarkMode: localStorage.getItem('darkMode') === 'true'
-};
+/* 要素参照（index.htmlのidと対応） */
+const connectionPanel = document.getElementById('connectionPanel');
+const chatArea = document.getElementById('chatArea');
 
-// Socket.IOの初期化
-function init() {
-    // Socket.IOクライアントの初期化
-    state.socket = io({
-        transports: ['websocket', 'polling'],
-        timeout: 20000,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
-    });
-    
-    setupEventListeners();
-    setupSocketListeners();
-    applyTheme();
-    loadSavedData();
+const nameInput = document.getElementById('nameInput');
+const roomInput = document.getElementById('roomInput');
+const privateCheckbox = document.getElementById('privateCheckbox');
+const passwordGroup = document.getElementById('passwordGroup');
+const passwordInput = document.getElementById('passwordInput');
+
+const joinButton = document.getElementById('joinButton');
+const leaveButton = document.getElementById('leaveButton');
+
+const currentRoomEl = document.getElementById('currentRoom');
+const currentUserEl = document.getElementById('currentUser');
+const userCountEl = document.getElementById('userCount');
+
+const messageDisplay1 = document.getElementById('messageDisplay1');
+const messageDisplay2 = document.getElementById('messageDisplay2');
+const inputText1 = document.getElementById('inputText1');
+const inputText2 = document.getElementById('inputText2');
+
+const onlineUsersBox = document.getElementById('onlineUsers');
+const onlineRoomsBox = document.getElementById('onlineRooms');
+const roomUsersBox = document.getElementById('roomUsers');
+
+const themeToggle = document.getElementById('themeToggle');
+const visibilityToggle = document.getElementById('visibilityToggle');
+
+let joinedRoom = null;
+let myName = null;
+
+/* UI: テーマ切替（保存付き） */
+(function initTheme() {
+const key = 'theme';
+const saved = localStorage.getItem(key);
+if (saved === 'dark') {
+document.documentElement.setAttribute('data-theme', 'dark');
+}
+themeToggle?.addEventListener('click', () => {
+const curr = document.documentElement.getAttribute('data-theme');
+const next = curr === 'dark' ? null : 'dark';
+if (next) {
+document.documentElement.setAttribute('data-theme', 'dark');
+localStorage.setItem(key, 'dark');
+} else {
+document.documentElement.removeAttribute('data-theme');
+localStorage.removeItem(key);
+}
+});
+})();
+
+/* UI: ルーム名の可視/不可視切替 */
+let roomHidden = false;
+visibilityToggle?.addEventListener('click', () => {
+roomHidden = !roomHidden;
+try {
+roomInput.type = roomHidden ? 'password' : 'text';
+} catch {
+// 一部ブラウザでtype変更不可のケースを握り潰し
+}
+});
+
+/* プライベートチェックでパスワード欄の表示切替 */
+privateCheckbox.addEventListener('change', () => {
+const show = privateCheckbox.checked;
+passwordGroup.style.display = show ? 'block' : 'none';
+if (!show) passwordInput.value = '';
+});
+
+/* 入室/作成 */
+joinButton.addEventListener('click', () => {
+const name = (nameInput.value || '').trim();
+const room = (roomInput.value || '').trim();
+const makePrivate = privateCheckbox.checked;
+const password = passwordInput.value;
+
+if (!name || !room) {
+shake(joinButton);
+return;
 }
 
-// イベントリスナーの設定
-function setupEventListeners() {
-    // 接続ボタン
-    elements.joinButton.addEventListener('click', handleJoinRoom);
-    
-    // 退出ボタン
-    elements.leaveButton.addEventListener('click', handleLeaveRoom);
-    
-    // 入力フィールド（Enter キー対応）
-    elements.nameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleJoinRoom();
-    });
-    
-    elements.roomInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleJoinRoom();
-    });
-    
-    elements.passwordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleJoinRoom();
-    });
-    
-    // メッセージ入力（リアルタイム更新）
-    elements.inputText1.addEventListener('input', () => handleMessageInput('sendMessage1', elements.inputText1.value));
-    elements.inputText2.addEventListener('input', () => handleMessageInput('sendMessage2', elements.inputText2.value));
-    
-    // 表示/非表示切り替え
-    elements.visibilityToggle.addEventListener('click', toggleRoomVisibility);
-    
-    // プライベートチェックボックス
-    elements.privateCheckbox.addEventListener('change', togglePrivateMode);
-    
-    // テーマ切り替え
-    elements.themeToggle.addEventListener('click', toggleTheme);
-    
-    // データ保存
-    elements.nameInput.addEventListener('input', saveUserData);
-    elements.roomInput.addEventListener('input', saveUserData);
-    
-    // ページを閉じる前の処理
-    window.addEventListener('beforeunload', () => {
-        if (state.socket) {
-            state.socket.disconnect();
-        }
-    });
+socket.emit('joinRoom', { name, room, makePrivate, password }, (res) => {
+if (!res?.ok) {
+alert(res?.error || '入室に失敗しました');
+return;
+}
+joinedRoom = res.room;
+myName = name;
+
+text
+// 画面切替
+connectionPanel.style.display = 'none';
+chatArea.style.display = 'flex';
+
+currentRoomEl.textContent = res.room + (res.private ? '（プライベート）' : '');
+currentUserEl.textContent = `あなた: ${name}`;
+userCountEl.textContent = '1';
+
+clearMessages();
+inputText1.focus();
+});
+});
+
+/* 退室 */
+leaveButton.addEventListener('click', () => {
+socket.emit('leaveRoom', () => {
+joinedRoom = null;
+// 画面戻す
+chatArea.style.display = 'none';
+connectionPanel.style.display = 'flex';
+// ルーム内ユーザー表示リセット
+renderRoomUsers([]);
+});
+});
+
+/* メッセージ送信 */
+function send(text) {
+const t = (text || '').trim();
+if (!t) return;
+socket.emit('message', t);
+}
+inputText1.addEventListener('keydown', (e) => {
+if (e.key === 'Enter') {
+send(inputText1.value);
+inputText1.value = '';
+}
+});
+inputText2.addEventListener('keydown', (e) => {
+if (e.key === 'Enter') {
+send(inputText2.value);
+inputText2.value = '';
+}
+});
+
+/* 受信イベント */
+socket.on('message', (m) => {
+addMessage(m.from, m.text);
+});
+socket.on('system', (ev) => {
+if (ev.type === 'join') addSystem(${ev.name} が入室しました);
+if (ev.type === 'leave') addSystem(${ev.name} が退出しました);
+});
+socket.on('lists', ({ users, rooms }) => {
+renderOnlineUsers(users || []);
+renderOnlineRooms(rooms || []);
+});
+socket.on('roomMembers', ({ users = [], count = 0 }) => {
+userCountEl.textContent = String(count);
+renderRoomUsers(users);
+});
+
+/* 切断時（サーバー側で即オフライン反映される） */
+socket.on('disconnect', () => {
+// 何もしない（サーバーで一覧は更新される）
+});
+
+/* UIユーティリティ */
+function addMessage(author, content) {
+const el = document.createElement('div');
+el.className = 'message';
+const a = document.createElement('div');
+a.className = 'message-author';
+a.textContent = author;
+const c = document.createElement('div');
+c.className = 'message-content';
+c.textContent = content;
+el.appendChild(a);
+el.appendChild(c);
+appendToDisplays(el);
+}
+function addSystem(text) {
+const el = document.createElement('div');
+el.className = 'message';
+el.style.borderLeftColor = '#718096';
+const a = document.createElement('div');
+a.className = 'message-author';
+a.style.color = '#718096';
+a.textContent = 'System';
+const c = document.createElement('div');
+c.className = 'message-content';
+c.textContent = text;
+el.appendChild(a);
+el.appendChild(c);
+appendToDisplays(el);
+}
+function appendToDisplays(node) {
+const n1 = node.cloneNode(true);
+const n2 = node.cloneNode(true);
+messageDisplay1.querySelector('.empty-state')?.remove();
+messageDisplay2.querySelector('.empty-state')?.remove();
+messageDisplay1.appendChild(n1);
+messageDisplay2.appendChild(n2);
+messageDisplay1.scrollTop = messageDisplay1.scrollHeight;
+messageDisplay2.scrollTop = messageDisplay2.scrollHeight;
+}
+function clearMessages() {
+messageDisplay1.innerHTML = <div class="empty-state"> <div class="empty-icon">💭</div> <p>メッセージがここに表示されます</p> </div>;
+messageDisplay2.innerHTML = <div class="empty-state"> <div class="empty-icon">💭</div> <p>メッセージがここに表示されます</p> </div>;
 }
 
-// Socket.IOイベントリスナーの設定
-function setupSocketListeners() {
-    state.socket.on('connect', () => {
-        console.log('Connected to server');
-        showNotification('サーバーに接続しました', 'success');
-    });
-    
-    state.socket.on('disconnect', (reason) => {
-        console.log('Disconnected:', reason);
-        showNotification('サーバーから切断されました', 'warning');
-        
-        // 強制的にオフライン状態に
-        if (state.isConnected) {
-            handleForceLeave();
-        }
-    });
-    
-    state.socket.on('connect_error', (error) => {
-        console.error('Connection error:', error);
-        showNotification('接続エラーが発生しました', 'error');
-    });
-    
-    // ルーム参加応答
-    state.socket.on('joinRoomResponse', (data) => {
-        if (data.success) {
-            showChatArea();
-            elements.currentRoom.textContent = data.room + (data.isPrivate ? ' (プライベート)' : '');
-            elements.currentUser.textContent = state.username;
-            elements.userCount.textContent = data.userCount || '1';
-            showNotification(`ルーム「${data.room}」に参加しました`, 'success');
-        } else {
-            showNotification(data.error || '参加に失敗しました', 'error');
-            elements.joinButton.disabled = false;
-            elements.joinButton.classList.remove('loading');
-        }
-    });
-    
-    // メッセージ受信
-    state.socket.on('receiveMessage1', (data) => {
-        if (data.room === state.currentRoom) {
-            displayCurrentMessage(elements.messageDisplay1, data.name, data.message);
-        }
-    });
-    
-    state.socket.on('receiveMessage2', (data) => {
-        if (data.room === state.currentRoom) {
-            displayCurrentMessage(elements.messageDisplay2, data.name, data.message);
-        }
-    });
-    
-    // システムメッセージ
-    state.socket.on('systemMessage', (data) => {
-        showNotification(data.message, 'info');
-    });
-    
-    // オンラインリスト更新
-    state.socket.on('onlineLists', (data) => {
-        updateOnlineUsers(data.users || []);
-        updateOnlineRooms(data.rooms || []);
-    });
-    
-    // ルーム内ユーザー更新
-    state.socket.on('roomUsers', (users) => {
-        updateRoomUsers(users || []);
-        elements.userCount.textContent = users.length;
-    });
+function renderOnlineUsers(list) {
+onlineUsersBox.innerHTML = '';
+if (!list.length) {
+const d = document.createElement('div');
+d.className = 'empty-online';
+d.textContent = 'オンラインユーザーがいません';
+onlineUsersBox.appendChild(d);
+return;
 }
-
-// ルーム参加処理
-function handleJoinRoom() {
-    const name = elements.nameInput.value.trim();
-    const room = elements.roomInput.value.trim();
-    const makePrivate = elements.privateCheckbox.checked;
-    const password = elements.passwordInput.value.trim();
-    
-    if (!name || !room) {
-        showNotification('名前とルーム名を入力してください', 'error');
-        return;
-    }
-    
-    if (makePrivate && password.length < 4) {
-        showNotification('プライベートルームには4文字以上のパスワードが必要です', 'error');
-        return;
-    }
-    
-    // ボタンをローディング状態に
-    elements.joinButton.disabled = true;
-    elements.joinButton.classList.add('loading');
-    
-    state.username = name;
-    state.currentRoom = room;
-    
-    // サーバーにルーム参加リクエスト
-    state.socket.emit('joinRoom', {
-        name,
-        room,
-        makePrivate,
-        password: makePrivate ? password : (password || '')
-    }, (response) => {
-        if (!response.success) {
-            showNotification(response.error || 'ルーム参加に失敗しました', 'error');
-            elements.joinButton.disabled = false;
-            elements.joinButton.classList.remove('loading');
-        } else {
-            showChatArea();
-            elements.currentRoom.textContent = response.room + (response.isPrivate ? ' (プライベート)' : '');
-            elements.currentUser.textContent = state.username;
-            elements.userCount.textContent = response.userCount || '1';
-            showNotification(`ルーム「${response.room}」に参加しました`, 'success');
-        }
-    });
+list.forEach(name => {
+const item = document.createElement('div');
+item.className = 'online-item';
+item.textContent = name;
+onlineUsersBox.appendChild(item);
+});
 }
-
-// ルーム退出処理
-function handleLeaveRoom() {
-    state.socket.emit('leaveRoom', (response) => {
-        handleForceLeave();
-    });
+function renderOnlineRooms(list) {
+onlineRoomsBox.innerHTML = '';
+if (!list.length) {
+const d = document.createElement('div');
+d.className = 'empty-online';
+d.textContent = 'アクティブなルームがありません';
+onlineRoomsBox.appendChild(d);
+return;
 }
-
-// 強制退出処理（切断時など）
-function handleForceLeave() {
-    state.isConnected = false;
-    state.currentRoom = '';
-    state.username = '';
-    
-    // チャットエリアをクリア
-    resetMessageDisplay(elements.messageDisplay1);
-    resetMessageDisplay(elements.messageDisplay2);
-    elements.inputText1.value = '';
-    elements.inputText2.value = '';
-    
-    // UI状態をリセット
-    elements.joinButton.disabled = false;
-    elements.joinButton.classList.remove('loading');
-    elements.nameInput.disabled = false;
-    elements.roomInput.disabled = false;
-    elements.privateCheckbox.disabled = false;
-    elements.passwordInput.disabled = !elements.privateCheckbox.checked;
-    
-    // 接続パネルに戻る
-    elements.chatArea.style.display = 'none';
-    elements.connectionPanel.style.display = 'flex';
-    
-    showNotification('チャットルームから退出しました', 'info');
+list.forEach(r => {
+const item = document.createElement('div');
+item.className = 'online-item';
+item.textContent = ${r.name} (${r.count});
+onlineRoomsBox.appendChild(item);
+});
 }
-
-// メッセージ入力処理（リアルタイム）
-function handleMessageInput(event, message) {
-    if (state.currentRoom && state.username) {
-        // 空の場合は空状態に戻す
-        if (!message.trim()) {
-            const displayElement = event === 'sendMessage1' ? elements.messageDisplay1 : elements.messageDisplay2;
-            resetMessageDisplay(displayElement);
-            return;
-        }
-        
-        state.socket.emit(event, {
-            room: state.currentRoom,
-            name: state.username,
-            message: message.trim()
-        });
-    }
+function renderRoomUsers(list) {
+roomUsersBox.innerHTML = '';
+if (!list.length) {
+const d = document.createElement('div');
+d.className = 'empty-sidebar';
+d.textContent = 'ユーザーがいません';
+roomUsersBox.appendChild(d);
+return;
 }
-
-// 現在のメッセージを表示（履歴なし）
-function displayCurrentMessage(container, author, content) {
-    // 既存の内容をクリアして新しいメッセージのみ表示
-    container.innerHTML = `
-        <div class="message">
-            <div class="message-author">${escapeHtml(author)}</div>
-            <div class="message-content">${escapeHtml(content)}</div>
-        </div>
-    `;
+list.forEach(name => {
+const item = document.createElement('div');
+item.className = 'sidebar-user';
+item.textContent = name + (name === myName ? '（あなた）' : '');
+roomUsersBox.appendChild(item);
+});
 }
-
-// メッセージ表示を空状態にリセット
-function resetMessageDisplay(container) {
-    container.innerHTML = `
-        <div class="empty-state">
-            <div class="empty-icon">💭</div>
-            <p>メッセージがここに表示されます</p>
-        </div>
-    `;
-}
-
-// チャットエリアを表示
-function showChatArea() {
-    elements.connectionPanel.style.display = 'none';
-    elements.chatArea.style.display = 'flex';
-    state.isConnected = true;
-    
-    // 入力を無効化
-    elements.nameInput.disabled = true;
-    elements.roomInput.disabled = true;
-    elements.privateCheckbox.disabled = true;
-    elements.passwordInput.disabled = true;
-    elements.joinButton.disabled = true;
-    elements.leaveButton.disabled = false;
-    
-    // 入力フィールドにフォーカス
-    setTimeout(() => {
-        elements.inputText1.focus();
-    }, 100);
-}
-
-// プライベートモード切り替え
-function togglePrivateMode() {
-    const isPrivate = elements.privateCheckbox.checked;
-    if (isPrivate) {
-        elements.passwordGroup.style.display = 'block';
-        elements.passwordInput.disabled = false;
-    } else {
-        elements.passwordGroup.style.display = 'none';
-        elements.passwordInput.disabled = true;
-        elements.passwordInput.value = '';
-    }
-}
-
-// ルーム名の表示/非表示切り替え
-function toggleRoomVisibility() {
-    const isPassword = elements.roomInput.type === 'password';
-    elements.roomInput.type = isPassword ? 'text' : 'password';
-    elements.visibilityToggle.querySelector('.visibility-icon').textContent = isPassword ? '👁️' : '🙈';
-}
-
-// オンラインユーザー更新
-function updateOnlineUsers(users) {
-    if (users.length === 0) {
-        elements.onlineUsers.innerHTML = '<div class="empty-online">オンラインユーザーがいません</div>';
-        return;
-    }
-    
-    elements.onlineUsers.innerHTML = users.map(user => 
-        `<div class="online-item">
-            <span class="online-indicator">🟢</span>
-            <span class="online-name">${escapeHtml(user)}</span>
-        </div>`
-    ).join('');
-}
-
-// オンラインルーム更新
-function updateOnlineRooms(rooms) {
-    if (rooms.length === 0) {
-        elements.onlineRooms.innerHTML = '<div class="empty-online">アクティブなルームがありません</div>';
-        return;
-    }
-    
-    elements.onlineRooms.innerHTML = rooms.map(room => 
-        `<div class="online-item room-item" onclick="joinPublicRoom('${escapeHtml(room.name)}')">
-            <span class="online-indicator">🏠</span>
-            <span class="online-name">${escapeHtml(room.name)}</span>
-            <span class="room-count">(${room.count})</span>
-        </div>`
-    ).join('');
-}
-
-// ルーム内ユーザー更新
-function updateRoomUsers(users) {
-    if (users.length === 0) {
-        elements.roomUsers.innerHTML = '<div class="empty-sidebar">ユーザーがいません</div>';
-        return;
-    }
-    
-    elements.roomUsers.innerHTML = users.map(user => 
-        `<div class="user-item">
-            <span class="user-indicator">🟢</span>
-            <span class="user-name">${escapeHtml(user)}</span>
-        </div>`
-    ).join('');
-}
-
-// 公開ルームに参加
-function joinPublicRoom(roomName) {
-    if (!state.isConnected) {
-        elements.roomInput.value = roomName;
-        elements.privateCheckbox.checked = false;
-        togglePrivateMode();
-        showNotification(`「${roomName}」に参加するには名前を入力して参加ボタンを押してください`, 'info');
-    }
-}
-
-// テーマ切り替え
-function toggleTheme() {
-    state.isDarkMode = !state.isDarkMode;
-    localStorage.setItem('darkMode', state.isDarkMode.toString());
-    applyTheme();
-}
-
-// テーマ適用
-function applyTheme() {
-    if (state.isDarkMode) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        elements.themeIcon.textContent = '☀️';
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-        elements.themeIcon.textContent = '🌙';
-    }
-}
-
-// 通知表示
-function showNotification(message, type = 'info') {
-    // 既存の通知を削除
-    const existingNotification = document.querySelector('.notification');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
-    
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: var(--bg-card);
-        color: var(--text-primary);
-        padding: 1rem 1.5rem;
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-lg);
-        border-left: 4px solid var(--${type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'primary'}-color);
-        z-index: 1000;
-        animation: slideInRight 0.3s ease-out;
-        max-width: 350px;
-        word-wrap: break-word;
-        font-size: 0.9rem;
-    `;
-    
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    // 4秒後に自動削除
-    setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease-out';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 300);
-    }, 4000);
-}
-
-// ユーザーデータの保存
-function saveUserData() {
-    localStorage.setItem('username', elements.nameInput.value);
-    localStorage.setItem('roomname', elements.roomInput.value);
-}
-
-// 保存されたデータの読み込み
-function loadSavedData() {
-    const savedUsername = localStorage.getItem('username');
-    const savedRoomname = localStorage.getItem('roomname');
-    
-    if (savedUsername) {
-        elements.nameInput.value = savedUsername;
-    }
-    
-    if (savedRoomname) {
-        elements.roomInput.value = savedRoomname;
-    }
-}
-
-// HTMLエスケープ
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// CSS アニメーションを追加
-if (!document.querySelector('#custom-animations')) {
-    const style = document.createElement('style');
-    style.id = 'custom-animations';
-    style.textContent = `
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(100%);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        
-        @keyframes slideOutRight {
-            from {
-                opacity: 1;
-                transform: translateX(0);
-            }
-            to {
-                opacity: 0;
-                transform: translateX(100%);
-            }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
-// アプリケーション初期化
-document.addEventListener('DOMContentLoaded', init);
-
-// PWA対応
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-                console.log('ServiceWorker registration successful');
-            })
-            .catch((error) => {
-                console.log('ServiceWorker registration failed:', error);
-            });
-    });
+function shake(btn) {
+btn.classList.add('loading');
+setTimeout(() => btn.classList.remove('loading'), 600);
 }
