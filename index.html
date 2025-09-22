@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Chat - リアルタイムチャット</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">💬</div>
+                    <h1>Modern Chat</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-toggle" id="themeToggle">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <!-- 接続フォーム -->
+            <div class="connection-panel" id="connectionPanel">
+                <div class="connection-card">
+                    <div class="card-header">
+                        <h2>チャットルームに参加</h2>
+                        <p>名前とルーム名を入力してチャットを開始しましょう</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="nameInput">ユーザー名</label>
+                        <input type="text" id="nameInput" placeholder="あなたの名前を入力" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="roomInput">ルーム名</label>
+                        <div class="input-with-toggle">
+                            <input type="text" id="roomInput" placeholder="参加するルーム名" autocomplete="off">
+                            <button class="visibility-toggle" id="visibilityToggle">
+                                <span class="visibility-icon">👁️</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="join-button" id="joinButton">
+                        <span class="button-text">参加する</span>
+                        <span class="button-icon">→</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- チャットエリア -->
+            <div class="chat-area" id="chatArea" style="display: none;">
+                <div class="chat-header">
+                    <div class="room-info">
+                        <div class="room-indicator"></div>
+                        <div class="room-details">
+                            <h3 id="currentRoom">ルーム名</h3>
+                            <p id="currentUser">ユーザー名</p>
+                        </div>
+                    </div>
+                    <button class="leave-button" id="leaveButton">退出</button>
+                </div>
+
+                <div class="chat-container">
+                    <div class="message-section">
+                        <div class="section-header">
+                            <h4>メッセージ 1</h4>
+                            <div class="status-dot"></div>
+                        </div>
+                        <div class="message-display" id="messageDisplay1">
+                            <div class="empty-state">
+                                <div class="empty-icon">💭</div>
+                                <p>メッセージがここに表示されます</p>
+                            </div>
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="inputText1" placeholder="メッセージを入力..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="message-section">
+                        <div class="section-header">
+                            <h4>メッセージ 2</h4>
+                            <div class="status-dot"></div>
+                        </div>
+                        <div class="message-display" id="messageDisplay2">
+                            <div class="empty-state">
+                                <div class="empty-icon">💭</div>
+                                <p>メッセージがここに表示されます</p>
+                            </div>
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="inputText2" placeholder="メッセージを入力..." autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Socket.IO (CDN版を使用) -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
