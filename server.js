@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// ESM での __dirname 取得
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -14,12 +15,12 @@ const io = new Server(server, {
   pingInterval: 25000,
   pingTimeout: 20000,
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
 });
 
-// 静的ファイル配信（リポジトリ直下のindex.html等をそのまま配信）
+// 静的ファイル配信（リポジトリ直下の index.html 等をそのまま配信）
 app.use(express.static(__dirname, { extensions: ['html'] }));
 
 // Health check endpoint for Render
@@ -41,7 +42,6 @@ function hashPassword(pw) {
 
 function verifyPassword(pw, stored) {
   try {
-    if (!stored) return false;
     const [salt, hash] = stored.split(':');
     const test = crypto.scryptSync(pw, salt, 64).toString('hex');
     return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
@@ -78,7 +78,7 @@ function socketName(socketId) {
 function broadcastRoomMembers(roomName) {
   const r = rooms.get(roomName);
   if (!r) return;
-  const users = Array.from(r.members).map(id => socketName(id)).filter(Boolean);
+  const users = Array.from(r.members).map((id) => socketName(id)).filter(Boolean);
   io.to(roomName).emit('roomMembers', { room: roomName, users, count: users.length });
 }
 
@@ -117,7 +117,6 @@ io.on('connection', (socket) => {
         return cb?.({ ok: false, error: 'このユーザー名は使用中です' });
       }
 
-      // 既にどこかの部屋にいるなら抜けさせる
       leaveCurrentRoom(socket);
 
       usersBySocket.set(socket.id, { name, room: null });
@@ -178,14 +177,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 離散メッセージ（従来のEnter送信）: 残すがUIは履歴を積まない
+  // 旧: Enter送信（残すがUI側では履歴表示しない方針）
   socket.on('message', (text) => {
     try {
       const info = usersBySocket.get(socket.id);
-      if (!info || !info.room) return;
+      if (!info) return;
+      if (!info.room) return;
       const msg = String(text || '').slice(0, 1000);
       if (!msg.trim()) return;
-
       const messageData = { from: info.name, text: msg, ts: Date.now() };
       io.to(info.room).emit('message', messageData);
     } catch (e) {
@@ -193,21 +192,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 連続更新（タイプ中の内容を即時共有）
+  // 新: 入力中のテキストをリアルタイム共有（履歴なし・上書き表示）
   socket.on('typing:update', (payload) => {
     try {
       const info = usersBySocket.get(socket.id);
       if (!info || !info.room) return;
 
-      const text = String(payload?.text ?? '').slice(0, 2000); // 過度な長文ガード
+      const content = String(payload?.text ?? '').slice(0, 2000);
       const channel = String(payload?.channel ?? 'default').slice(0, 32);
 
-      // 送信者含む部屋全員に配信
       io.to(info.room).emit('typing:update', {
         from: info.name,
-        text,
+        text: content,
         channel,
-        ts: Date.now()
+        ts: Date.now(),
       });
     } catch (e) {
       console.error('typing:update error:', e);
@@ -216,9 +214,11 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     try {
+      console.log(`Disconnection: ${socket.id}`);
       const info = usersBySocket.get(socket.id);
       if (info) {
         const { name, room } = info;
+        console.log(`User ${name} disconnected from room ${room}`);
         leaveCurrentRoom(socket);
         usersBySocket.delete(socket.id);
         if (socketByName.get(name) === socket.id) socketByName.delete(name);
@@ -240,7 +240,7 @@ setInterval(() => {
   const stats = {
     connections: usersBySocket.size,
     rooms: rooms.size,
-    users: socketByName.size
+    users: socketByName.size,
   };
   console.log('Server stats:', stats);
 }, 60000);
