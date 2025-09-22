@@ -402,7 +402,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    min-height: 200px;
+    min-height: 50px;
 }
 
 .empty-state {
