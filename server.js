@@ -12,11 +12,20 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   pingInterval: 25000,
-  pingTimeout: 20000
+  pingTimeout: 20000,
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
 // 静的ファイル配信（リポジトリ直下のindex.html等をそのまま配信）
 app.use(express.static(__dirname, { extensions: ['html'] }));
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 // 状態管理
 const usersBySocket = new Map(); // socket.id -> { name, room }
@@ -27,13 +36,19 @@ const rooms = new Map();
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(pw, salt, 64).toString('hex');
-  return `${salt}:${hash}`; // ← ここがバッククォートに修正
+  return `${salt}:${hash}`;
 }
+
 function verifyPassword(pw, stored) {
-  const [salt, hash] = stored.split(':');
-  const test = crypto.scryptSync(pw, salt, 64).toString('hex');
-  // 長さを固定しつつ比較
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
+  try {
+    const [salt, hash] = stored.split(':');
+    const test = crypto.scryptSync(pw, salt, 64).toString('hex');
+    // 長さを固定しつつ比較
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
+  } catch (error) {
+    console.error('Password verification error:', error);
+    return false;
+  }
 }
 
 function buildLists() {
@@ -46,22 +61,27 @@ function buildLists() {
   }
   return { users, rooms: publicRooms };
 }
+
 function broadcastLists() {
   io.emit('lists', buildLists());
 }
+
 function sendListsTo(socket) {
   socket.emit('lists', buildLists());
 }
+
 function socketName(socketId) {
   const info = usersBySocket.get(socketId);
   return info?.name || null;
 }
+
 function broadcastRoomMembers(roomName) {
   const r = rooms.get(roomName);
   if (!r) return;
   const users = Array.from(r.members).map(id => socketName(id)).filter(Boolean);
   io.to(roomName).emit('roomMembers', { room: roomName, users, count: users.length });
 }
+
 function leaveCurrentRoom(socket) {
   const info = usersBySocket.get(socket.id);
   if (!info || !info.room) return;
@@ -80,6 +100,8 @@ function leaveCurrentRoom(socket) {
 }
 
 io.on('connection', (socket) => {
+  console.log(`New connection: ${socket.id}`);
+  
   // 初回接続時に現在のオンライン一覧を返す
   sendListsTo(socket);
 
@@ -132,45 +154,85 @@ io.on('connection', (socket) => {
       broadcastLists();          // グローバル一覧更新
       broadcastRoomMembers(room); // 部屋内メンバー更新
     } catch (e) {
+      console.error('joinRoom error:', e);
       cb?.({ ok: false, error: 'サーバーエラー' });
     }
   });
 
   socket.on('leaveRoom', (cb) => {
-    const info = usersBySocket.get(socket.id);
-    const prevRoom = info?.room || null;
-    const name = info?.name || null;
+    try {
+      const info = usersBySocket.get(socket.id);
+      const prevRoom = info?.room || null;
+      const name = info?.name || null;
 
-    leaveCurrentRoom(socket);
-    cb?.({ ok: true });
+      leaveCurrentRoom(socket);
+      cb?.({ ok: true });
 
-    if (prevRoom && name) {
-      socket.to(prevRoom).emit('system', { type: 'leave', name, room: prevRoom });
+      if (prevRoom && name) {
+        socket.to(prevRoom).emit('system', { type: 'leave', name, room: prevRoom });
+      }
+      broadcastLists();
+    } catch (e) {
+      console.error('leaveRoom error:', e);
+      cb?.({ ok: false, error: 'サーバーエラー' });
     }
-    broadcastLists();
   });
 
   socket.on('message', (text) => {
-    const info = usersBySocket.get(socket.id);
-    if (!info || !info.room) return;
-    const msg = String(text || '').slice(0, 1000);
-    io.to(info.room).emit('message', { from: info.name, text: msg, ts: Date.now() });
+    try {
+      const info = usersBySocket.get(socket.id);
+      if (!info || !info.room) return;
+      const msg = String(text || '').slice(0, 1000);
+      io.to(info.room).emit('message', { from: info.name, text: msg, ts: Date.now() });
+    } catch (e) {
+      console.error('message error:', e);
+    }
   });
 
   socket.on('disconnect', () => {
-    const info = usersBySocket.get(socket.id);
-    if (info) {
-      const { name, room } = info;
-      leaveCurrentRoom(socket);
-      usersBySocket.delete(socket.id);
-      if (socketByName.get(name) === socket.id) socketByName.delete(name);
-      if (room) socket.to(room).emit('system', { type: 'leave', name, room });
+    try {
+      console.log(`Disconnection: ${socket.id}`);
+      const info = usersBySocket.get(socket.id);
+      if (info) {
+        const { name, room } = info;
+        leaveCurrentRoom(socket);
+        usersBySocket.delete(socket.id);
+        if (socketByName.get(name) === socket.id) socketByName.delete(name);
+        if (room) socket.to(room).emit('system', { type: 'leave', name, room });
+      }
+      broadcastLists(); // 即オフライン反映
+    } catch (e) {
+      console.error('disconnect error:', e);
     }
-    broadcastLists(); // 即オフライン反映
+  });
+
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
   });
 });
 
+// Render では動的にポートが割り当てられる
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`listening on http://0.0.0.0:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server is running on http://${HOST}:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });
