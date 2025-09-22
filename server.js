@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ESM での __dirname 取得
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -15,12 +14,12 @@ const io = new Server(server, {
   pingInterval: 25000,
   pingTimeout: 20000,
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
-// 静的ファイル配信（リポジトリ直下の index.html 等をそのまま配信）
+// 静的ファイル配信（リポジトリ直下のindex.html等をそのまま配信）
 app.use(express.static(__dirname, { extensions: ['html'] }));
 
 // Health check endpoint for Render
@@ -30,7 +29,7 @@ app.get('/health', (req, res) => {
 
 // 状態管理
 const usersBySocket = new Map(); // socket.id -> { name, room }
-const socketByName = new Map(); // name -> socket.id
+const socketByName = new Map();  // name -> socket.id
 // roomName -> { private: boolean, pass?: "salt:hash", members: Set<socket.id> }
 const rooms = new Map();
 
@@ -78,7 +77,7 @@ function socketName(socketId) {
 function broadcastRoomMembers(roomName) {
   const r = rooms.get(roomName);
   if (!r) return;
-  const users = Array.from(r.members).map((id) => socketName(id)).filter(Boolean);
+  const users = Array.from(r.members).map(id => socketName(id)).filter(Boolean);
   io.to(roomName).emit('roomMembers', { room: roomName, users, count: users.length });
 }
 
@@ -91,7 +90,7 @@ function leaveCurrentRoom(socket) {
     r.members.delete(socket.id);
     socket.leave(roomName);
     if (r.members.size === 0) {
-      rooms.delete(roomName); // 人がいなくなったら部屋は消滅
+      rooms.delete(roomName);
     } else {
       broadcastRoomMembers(roomName);
     }
@@ -118,7 +117,6 @@ io.on('connection', (socket) => {
       }
 
       leaveCurrentRoom(socket);
-
       usersBySocket.set(socket.id, { name, room: null });
       socketByName.set(name, socket.id);
 
@@ -143,11 +141,8 @@ io.on('connection', (socket) => {
       usersBySocket.get(socket.id).room = room;
 
       console.log(`User ${name} (${socket.id}) joined room ${room}`);
-
       cb?.({ ok: true, room, private: rec.private });
-
       socket.to(room).emit('system', { type: 'join', name, room });
-
       broadcastLists();
       broadcastRoomMembers(room);
     } catch (e) {
@@ -162,8 +157,6 @@ io.on('connection', (socket) => {
       const prevRoom = info?.room || null;
       const name = info?.name || null;
 
-      console.log(`User ${name} (${socket.id}) leaving room ${prevRoom}`);
-
       leaveCurrentRoom(socket);
       cb?.({ ok: true });
 
@@ -177,35 +170,23 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 旧: Enter送信（残すがUI側では履歴表示しない方針）
-  socket.on('message', (text) => {
-    try {
-      const info = usersBySocket.get(socket.id);
-      if (!info) return;
-      if (!info.room) return;
-      const msg = String(text || '').slice(0, 1000);
-      if (!msg.trim()) return;
-      const messageData = { from: info.name, text: msg, ts: Date.now() };
-      io.to(info.room).emit('message', messageData);
-    } catch (e) {
-      console.error('message error:', e);
-    }
-  });
-
-  // 新: 入力中のテキストをリアルタイム共有（履歴なし・上書き表示）
+  // リアルタイム入力共有（履歴なし・上書き表示）
   socket.on('typing:update', (payload) => {
     try {
       const info = usersBySocket.get(socket.id);
       if (!info || !info.room) return;
 
-      const content = String(payload?.text ?? '').slice(0, 2000);
-      const channel = String(payload?.channel ?? 'default').slice(0, 32);
+      const text = String(payload?.text ?? '').slice(0, 1000);
+      const channel = String(payload?.channel ?? '1');
 
+      console.log(`Typing from ${info.name} in room ${info.room}, channel ${channel}: "${text}"`);
+
+      // 部屋の全員（送信者含む）に配信
       io.to(info.room).emit('typing:update', {
         from: info.name,
-        text: content,
+        text,
         channel,
-        ts: Date.now(),
+        ts: Date.now()
       });
     } catch (e) {
       console.error('typing:update error:', e);
@@ -218,7 +199,6 @@ io.on('connection', (socket) => {
       const info = usersBySocket.get(socket.id);
       if (info) {
         const { name, room } = info;
-        console.log(`User ${name} disconnected from room ${room}`);
         leaveCurrentRoom(socket);
         usersBySocket.delete(socket.id);
         if (socketByName.get(name) === socket.id) socketByName.delete(name);
@@ -235,17 +215,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ステータス情報の定期出力
-setInterval(() => {
-  const stats = {
-    connections: usersBySocket.size,
-    rooms: rooms.size,
-    users: socketByName.size,
-  };
-  console.log('Server stats:', stats);
-}, 60000);
-
-// Render では動的にポートが割り当てられる
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -254,7 +223,6 @@ server.listen(PORT, HOST, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
   server.close(() => {
