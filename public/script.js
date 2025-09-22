@@ -1,32 +1,19 @@
-/* Socket.IO クライアント */
-let socket;
+const socket = io();
 
-// Socket.IOの初期化を遅延実行
-function initializeSocket() {
-  if (typeof io === 'undefined') {
-    console.error('Socket.IO not available');
-    return false;
-  }
-  
-  socket = io();
-  setupSocketListeners();
-  console.log('Socket.IO initialized');
-  return true;
-}
-
-/* 要素参照（HTMLのIDと対応） */
+/* 要素参照（HTMLのIDと完全対応） */
 const connectionPanel = document.getElementById('connectionPanel');
 const chatArea = document.getElementById('chatArea');
 
+// 参加フォーム
 const nameInput = document.getElementById('nameInput');
 const roomInput = document.getElementById('roomInput');
 const privateCheckbox = document.getElementById('privateCheckbox');
 const passwordGroup = document.getElementById('passwordGroup');
 const passwordInput = document.getElementById('passwordInput');
-
 const joinButton = document.getElementById('joinButton');
 const leaveButton = document.getElementById('leaveButton');
 
+// ステータス表示
 const currentRoomEl = document.getElementById('currentRoom');
 const currentUserEl = document.getElementById('currentUser');
 const userCountEl = document.getElementById('userCount');
@@ -37,95 +24,49 @@ const messageDisplay2 = document.getElementById('messageDisplay2');
 const inputText1 = document.getElementById('inputText1');
 const inputText2 = document.getElementById('inputText2');
 
-const onlineUsersBox = document.getElementById('onlineUsers');
-const onlineRoomsBox = document.getElementById('onlineRooms');
-const roomUsersBox = document.getElementById('roomUsers');
+// オンラインリスト
+const onlineUsers = document.getElementById('onlineUsers');
+const onlineRooms = document.getElementById('onlineRooms');
+const roomUsers = document.getElementById('roomUsers');
 
+// その他UI
 const themeToggle = document.getElementById('themeToggle');
 const visibilityToggle = document.getElementById('visibilityToggle');
 
 let joinedRoom = null;
 let myName = null;
 
-/* Socket.IOイベントリスナー設定 */
-function setupSocketListeners() {
-  if (!socket) return;
-  
-  socket.on('connect', () => {
-    console.log('Socket connected:', socket.id);
-  });
-
-  socket.on('connect_error', (error) => {
-    console.error('Socket connection error:', error);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', reason);
-  });
-
-  // リアルタイム入力受信（履歴なし・上書き表示）
-  socket.on('typing:update', (payload) => {
-    const { from, text, channel, ts } = payload || {};
-    console.log(`Received typing update from ${from}, channel ${channel}:`, text);
-    renderTypingMessage(from, text, channel, ts);
-  });
-
-  socket.on('system', (ev) => {
-    console.log('System event received:', ev);
-    if (ev.type === 'join') addSystemMessage(`🔵 ${ev.name} が入室しました`);
-    if (ev.type === 'leave') addSystemMessage(`⚫ ${ev.name} が退出しました`);
-  });
-
-  socket.on('lists', ({ users, rooms }) => {
-    console.log('Lists updated:', { users: users?.length, rooms: rooms?.length });
-    renderOnlineUsers(users || []);
-    renderOnlineRooms(rooms || []);
-  });
-
-  socket.on('roomMembers', ({ users = [], count = 0 }) => {
-    console.log('Room members updated:', { users, count });
-    if (userCountEl) userCountEl.textContent = String(count);
-    renderRoomUsers(users);
-  });
-}
-
-/* UI: テーマ切替 */
-(function initTheme() {
+/* テーマ切替 */
+if (themeToggle) {
   const key = 'theme';
   const saved = localStorage.getItem(key);
   if (saved === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
   
-  if (themeToggle) {
-    themeToggle.addEventListener('click', () => {
-      const curr = document.documentElement.getAttribute('data-theme');
-      const next = curr === 'dark' ? null : 'dark';
-      if (next) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem(key, 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.removeItem(key);
-      }
-    });
-  }
-})();
-
-/* UI: ルーム名の可視/不可視切替 */
-let roomHidden = false;
-if (visibilityToggle && roomInput) {
-  visibilityToggle.addEventListener('click', () => {
-    roomHidden = !roomHidden;
-    try {
-      roomInput.type = roomHidden ? 'password' : 'text';
-    } catch {
-      // 一部ブラウザでtype変更不可のケースを握り潰し
+  themeToggle.addEventListener('click', () => {
+    const curr = document.documentElement.getAttribute('data-theme');
+    const next = curr === 'dark' ? null : 'dark';
+    if (next) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem(key, 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.removeItem(key);
     }
   });
 }
 
-/* プライベートチェックでパスワード欄の表示切替 */
+/* ルーム名表示切替 */
+if (visibilityToggle && roomInput) {
+  let roomHidden = false;
+  visibilityToggle.addEventListener('click', () => {
+    roomHidden = !roomHidden;
+    roomInput.type = roomHidden ? 'password' : 'text';
+  });
+}
+
+/* プライベートルーム設定 */
 if (privateCheckbox && passwordGroup && passwordInput) {
   privateCheckbox.addEventListener('change', () => {
     const show = privateCheckbox.checked;
@@ -134,305 +75,338 @@ if (privateCheckbox && passwordGroup && passwordInput) {
   });
 }
 
-/* 入室/作成 */
-if (joinButton && nameInput && roomInput) {
+/* 参加処理 */
+if (joinButton) {
   joinButton.addEventListener('click', () => {
-    if (!socket || !socket.connected) {
-      alert('サーバーとの接続がありません。ページを再読み込みしてください。');
-      return;
-    }
-    
-    const name = (nameInput.value || '').trim();
-    const room = (roomInput.value || '').trim();
-    const makePrivate = privateCheckbox ? privateCheckbox.checked : false;
-    const password = passwordInput ? passwordInput.value : '';
+    const name = (nameInput?.value || '').trim();
+    const room = (roomInput?.value || '').trim();
+    const makePrivate = privateCheckbox?.checked || false;
+    const password = passwordInput?.value || '';
 
     if (!name || !room) {
-      alert('名前と部屋名を入力してください。');
+      alert('名前と部屋名を入力してください');
       return;
     }
 
-    console.log('Attempting to join room:', { name, room, makePrivate });
+    console.log('Joining room:', { name, room, makePrivate });
     
     socket.emit('joinRoom', { name, room, makePrivate, password }, (res) => {
-      console.log('Join room response:', res);
+      console.log('Join response:', res);
       if (!res?.ok) {
         alert(res?.error || '入室に失敗しました');
         return;
       }
+      
       joinedRoom = res.room;
       myName = name;
 
-      console.log('Successfully joined room:', joinedRoom, 'as:', myName);
-
       // 画面切替
-      if (connectionPanel) connectionPanel.style.display = 'none';
-      if (chatArea) chatArea.style.display = 'flex';
+      connectionPanel.style.display = 'none';
+      chatArea.style.display = 'flex';
 
+      // ステータス更新
       if (currentRoomEl) currentRoomEl.textContent = res.room + (res.private ? '（プライベート）' : '');
       if (currentUserEl) currentUserEl.textContent = `あなた: ${name}`;
-      if (userCountEl) userCountEl.textContent = '1';
 
-      clearAllMessages();
-      if (inputText1) inputText1.focus();
+      // メッセージエリアをクリア
+      clearDisplay(messageDisplay1);
+      clearDisplay(messageDisplay2);
+      
+      console.log('Successfully joined room:', joinedRoom);
     });
   });
 }
 
-/* 退室 */
+/* 退室処理 */
 if (leaveButton) {
   leaveButton.addEventListener('click', () => {
-    if (!socket) return;
-    
-    console.log('Leaving room:', joinedRoom);
-    
     socket.emit('leaveRoom', () => {
-      console.log('Left room successfully');
       joinedRoom = null;
       myName = null;
       
-      // 画面戻す
-      if (chatArea) chatArea.style.display = 'none';
-      if (connectionPanel) connectionPanel.style.display = 'flex';
-      renderRoomUsers([]);
-      clearAllMessages();
+      // 画面切替
+      chatArea.style.display = 'none';
+      connectionPanel.style.display = 'flex';
+      
+      // 表示クリア
+      clearDisplay(messageDisplay1);
+      clearDisplay(messageDisplay2);
+      
+      console.log('Left room');
     });
   });
 }
 
-/* リアルタイム入力処理 */
-function setupRealtimeInput(inputElement, channel) {
-  if (!inputElement) return;
+/* リアルタイム入力設定 */
+function setupRealtimeInput(inputElement, displayElement, channel) {
+  if (!inputElement || !displayElement) {
+    console.error(`Setup failed for channel ${channel}:`, { inputElement: !!inputElement, displayElement: !!displayElement });
+    return;
+  }
   
-  let lastValue = '';
+  console.log(`Setting up realtime input for channel ${channel}`);
+  
+  let lastSentValue = '';
   
   const sendUpdate = throttle(() => {
     const currentValue = inputElement.value || '';
-    if (currentValue === lastValue) return;
-    lastValue = currentValue;
     
-    if (!socket || !socket.connected || !joinedRoom) return;
+    // 値が変わっていない場合はスキップ
+    if (currentValue === lastSentValue) return;
+    lastSentValue = currentValue;
     
-    console.log(`Sending typing update for channel ${channel}:`, currentValue);
-    socket.emit('typing:update', { text: currentValue, channel });
-  }, 100); // 100ms間隔で送信
-
-  inputElement.addEventListener('input', sendUpdate);
+    // 未参加の場合はスキップ
+    if (!joinedRoom || !myName) return;
+    
+    console.log(`Sending typing update - Channel: ${channel}, Text: "${currentValue}"`);
+    
+    // サーバーに送信
+    socket.emit('typing:update', { 
+      text: currentValue, 
+      channel: channel 
+    });
+    
+    // ローカル即時表示（自分の入力をすぐ反映）
+    updateDisplay(displayElement, myName, currentValue);
+    
+  }, 50); // 50ms間隔
   
-  // フォーカス時の状態確認
-  inputElement.addEventListener('focus', () => {
-    if (!socket || !socket.connected) {
-      console.warn('Input focused but socket not connected');
-    }
-    if (!joinedRoom) {
-      console.warn('Input focused but not in room');
+  // input イベントでリアルタイム送信
+  inputElement.addEventListener('input', (e) => {
+    console.log(`Input event on channel ${channel}:`, e.target.value);
+    sendUpdate();
+  });
+  
+  // Enter キーでも送信（念のため）
+  inputElement.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      console.log(`Enter pressed on channel ${channel}`);
+      sendUpdate();
     }
   });
 }
 
-// 入力欄をセットアップ
-setupRealtimeInput(inputText1, '1');
-setupRealtimeInput(inputText2, '2');
+// 入力設定を適用
+setupRealtimeInput(inputText1, messageDisplay1, '1');
+setupRealtimeInput(inputText2, messageDisplay2, '2');
 
-/* 表示処理（履歴なし・上書き表示） */
-function renderTypingMessage(from, text, channel, ts) {
-  console.log(`Rendering message from ${from} in channel ${channel}:`, text);
+/* Socket.IO イベントリスナー */
+socket.on('connect', () => {
+  console.log('Socket connected:', socket.id);
+});
+
+socket.on('disconnect', () => {
+  console.log('Socket disconnected');
+});
+
+socket.on('connect_error', (error) => {
+  console.error('Socket connection error:', error);
+});
+
+// リアルタイム入力受信
+socket.on('typing:update', (data) => {
+  console.log('Received typing update:', data);
+  const { from, text, channel } = data;
   
-  let display;
+  let displayElement;
   if (channel === '1') {
-    display = messageDisplay1;
+    displayElement = messageDisplay1;
   } else if (channel === '2') {
-    display = messageDisplay2;
+    displayElement = messageDisplay2;
   } else {
-    display = messageDisplay1; // デフォルト
+    console.warn('Unknown channel:', channel);
+    return;
   }
   
-  if (!display) {
-    console.error('Display element not found for channel:', channel);
-    return;
-  }
+  updateDisplay(displayElement, from, text);
+});
 
-  // 空文字なら表示をクリア
+// システムメッセージ
+socket.on('system', (ev) => {
+  if (ev.type === 'join') {
+    console.log(`${ev.name} joined the room`);
+  } else if (ev.type === 'leave') {
+    console.log(`${ev.name} left the room`);
+  }
+});
+
+// オンラインリスト更新
+socket.on('lists', ({ users, rooms }) => {
+  updateOnlineUsers(users || []);
+  updateOnlineRooms(rooms || []);
+});
+
+// ルーム内ユーザー更新
+socket.on('roomMembers', ({ users, count }) => {
+  if (userCountEl) userCountEl.textContent = String(count || 0);
+  updateRoomUsers(users || []);
+});
+
+/* 表示更新関数 */
+function updateDisplay(displayElement, from, text) {
+  if (!displayElement) return;
+  
+  // 空文字の場合は empty-state を表示
   if (!text || text.trim() === '') {
-    clearDisplay(display);
+    clearDisplay(displayElement);
     return;
   }
-
-  // 既存の.message.system-messageを取得or作成
-  let messageEl = display.querySelector('.message.system-message');
+  
+  // 既存のメッセージ要素を取得または作成
+  let messageEl = displayElement.querySelector('.message.system-message');
   if (!messageEl) {
-    // 新規作成
-    display.innerHTML = '';
+    // empty-state を削除
+    displayElement.innerHTML = '';
+    
+    // 新しいメッセージ要素を作成
     messageEl = document.createElement('div');
     messageEl.className = 'message system-message';
     
-    const authorEl = document.createElement('div');
-    authorEl.className = 'message-author';
+    const authorDiv = document.createElement('div');
+    authorDiv.className = 'message-author';
     
-    const contentEl = document.createElement('div');
-    contentEl.className = 'message-content';
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
     
-    const timeEl = document.createElement('div');
-    timeEl.className = 'message-timestamp';
-    timeEl.style.fontSize = '0.75em';
-    timeEl.style.color = '#888';
-    timeEl.style.marginTop = '4px';
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'message-timestamp';
+    timeDiv.style.fontSize = '0.75em';
+    timeDiv.style.color = '#888';
+    timeDiv.style.marginTop = '4px';
     
-    messageEl.appendChild(authorEl);
-    messageEl.appendChild(contentEl);
-    messageEl.appendChild(timeEl);
-    display.appendChild(messageEl);
+    messageEl.appendChild(authorDiv);
+    messageEl.appendChild(contentDiv);
+    messageEl.appendChild(timeDiv);
+    displayElement.appendChild(messageEl);
   }
   
-  // 内容を更新（履歴なし・上書き）
-  const authorEl = messageEl.querySelector('.message-author');
-  const contentEl = messageEl.querySelector('.message-content');
-  const timeEl = messageEl.querySelector('.message-timestamp');
+  // 内容を更新
+  const authorDiv = messageEl.querySelector('.message-author');
+  const contentDiv = messageEl.querySelector('.message-content');
+  const timeDiv = messageEl.querySelector('.message-timestamp');
   
-  if (authorEl) authorEl.textContent = from || 'Unknown';
-  if (contentEl) contentEl.textContent = text;
-  if (timeEl) timeEl.textContent = new Date(ts || Date.now()).toLocaleTimeString();
+  if (authorDiv) authorDiv.textContent = from || 'Unknown';
+  if (contentDiv) contentDiv.textContent = text;
+  if (timeDiv) timeDiv.textContent = new Date().toLocaleTimeString();
   
-  display.scrollTop = display.scrollHeight;
+  console.log(`Display updated - From: ${from}, Text: "${text}"`);
 }
 
-function clearDisplay(display) {
-  if (display) {
-    display.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💭</div>
-        <p>メッセージがここに表示されます</p>
-      </div>
-    `;
+function clearDisplay(displayElement) {
+  if (!displayElement) return;
+  
+  displayElement.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">💭</div>
+      <p>メッセージがここに表示されます</p>
+    </div>
+  `;
+}
+
+function updateOnlineUsers(users) {
+  if (!onlineUsers) return;
+  
+  onlineUsers.innerHTML = '';
+  if (users.length === 0) {
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-online';
+    emptyDiv.textContent = 'オンラインユーザーがいません';
+    onlineUsers.appendChild(emptyDiv);
+  } else {
+    users.forEach(user => {
+      const userDiv = document.createElement('div');
+      userDiv.className = 'online-item';
+      userDiv.textContent = user;
+      onlineUsers.appendChild(userDiv);
+    });
   }
 }
 
-function clearAllMessages() {
-  clearDisplay(messageDisplay1);
-  clearDisplay(messageDisplay2);
-}
-
-function addSystemMessage(text) {
-  // システムメッセージはメッセージ1に表示
-  renderTypingMessage('System', text, '1', Date.now());
-}
-
-/* その他のUI機能 */
-function renderOnlineUsers(list) {
-  if (!onlineUsersBox) return;
+function updateOnlineRooms(rooms) {
+  if (!onlineRooms) return;
   
-  onlineUsersBox.innerHTML = '';
-  if (!list.length) {
-    const d = document.createElement('div');
-    d.className = 'empty-online';
-    d.textContent = 'オンラインユーザーがいません';
-    onlineUsersBox.appendChild(d);
-    return;
+  onlineRooms.innerHTML = '';
+  if (rooms.length === 0) {
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-online';
+    emptyDiv.textContent = 'アクティブなルームがありません';
+    onlineRooms.appendChild(emptyDiv);
+  } else {
+    rooms.forEach(room => {
+      const roomDiv = document.createElement('div');
+      roomDiv.className = 'online-item';
+      roomDiv.textContent = `${room.name} (${room.count})`;
+      onlineRooms.appendChild(roomDiv);
+    });
   }
-  
-  list.forEach(name => {
-    const item = document.createElement('div');
-    item.className = 'online-item';
-    item.textContent = name;
-    onlineUsersBox.appendChild(item);
-  });
 }
 
-function renderOnlineRooms(list) {
-  if (!onlineRoomsBox) return;
+function updateRoomUsers(users) {
+  if (!roomUsers) return;
   
-  onlineRoomsBox.innerHTML = '';
-  if (!list.length) {
-    const d = document.createElement('div');
-    d.className = 'empty-online';
-    d.textContent = 'アクティブなルームがありません';
-    onlineRoomsBox.appendChild(d);
-    return;
+  roomUsers.innerHTML = '';
+  if (users.length === 0) {
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-sidebar';
+    emptyDiv.textContent = 'ユーザーがいません';
+    roomUsers.appendChild(emptyDiv);
+  } else {
+    users.forEach(user => {
+      const userDiv = document.createElement('div');
+      userDiv.className = 'sidebar-user';
+      userDiv.textContent = user + (user === myName ? '（あなた）' : '');
+      roomUsers.appendChild(userDiv);
+    });
   }
-  
-  list.forEach(r => {
-    const item = document.createElement('div');
-    item.className = 'online-item';
-    item.textContent = `${r.name} (${r.count})`;
-    onlineRoomsBox.appendChild(item);
-  });
 }
 
-function renderRoomUsers(list) {
-  if (!roomUsersBox) return;
-  
-  roomUsersBox.innerHTML = '';
-  if (!list.length) {
-    const d = document.createElement('div');
-    d.className = 'empty-sidebar';
-    d.textContent = 'ユーザーがいません';
-    roomUsersBox.appendChild(d);
-    return;
-  }
-  
-  list.forEach(name => {
-    const item = document.createElement('div');
-    item.className = 'sidebar-user';
-    item.textContent = name + (name === myName ? '（あなた）' : '');
-    roomUsersBox.appendChild(item);
-  });
-}
-
-// throttle関数: 高頻度イベントの制御
-function throttle(fn, interval = 100) {
-  let last = 0;
-  let timer = null;
-  
-  return function (...args) {
-    const now = Date.now();
-    const remaining = interval - (now - last);
-    
-    if (remaining <= 0) {
-      last = now;
-      fn.apply(this, args);
-    } else {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        last = Date.now();
-        fn.apply(this, args);
-      }, remaining);
+// throttle 関数
+function throttle(func, limit) {
+  let inThrottle;
+  return function() {
+    const args = arguments;
+    const context = this;
+    if (!inThrottle) {
+      func.apply(context, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
     }
-  };
-}
-
-/* 初期化 */
-function initialize() {
-  console.log('Initializing application...');
-  
-  if (!initializeSocket()) {
-    console.error('Failed to initialize Socket.IO');
-    alert('アプリケーションの初期化に失敗しました。ページを再読み込みしてください。');
-    return;
   }
-  
-  console.log('Application initialized successfully');
-}
-
-// DOM読み込み後に初期化実行
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initialize);
-} else {
-  initialize();
 }
 
 /* デバッグ用 */
 window.debugChat = {
-  sendToChannel1: (text = 'Test message 1') => {
-    if (socket && joinedRoom) {
-      socket.emit('typing:update', { text, channel: '1' });
-    }
+  test1: (text = 'Test message 1') => {
+    console.log('Debug: sending to channel 1');
+    socket.emit('typing:update', { text, channel: '1' });
   },
-  sendToChannel2: (text = 'Test message 2') => {
-    if (socket && joinedRoom) {
-      socket.emit('typing:update', { text, channel: '2' });
-    }
+  test2: (text = 'Test message 2') => {
+    console.log('Debug: sending to channel 2');
+    socket.emit('typing:update', { text, channel: '2' });
   },
-  clearAll: () => {
-    clearAllMessages();
+  status: () => {
+    console.log('Debug status:', {
+      socket: !!socket,
+      connected: socket?.connected,
+      joinedRoom,
+      myName,
+      inputText1: !!inputText1,
+      inputText2: !!inputText2,
+      messageDisplay1: !!messageDisplay1,
+      messageDisplay2: !!messageDisplay2
+    });
+  },
+  clear: () => {
+    clearDisplay(messageDisplay1);
+    clearDisplay(messageDisplay2);
   }
 };
+
+console.log('Script loaded successfully');
+console.log('Elements check:', {
+  inputText1: !!inputText1,
+  inputText2: !!inputText2,
+  messageDisplay1: !!messageDisplay1,
+  messageDisplay2: !!messageDisplay2
+});
