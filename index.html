@@ -50,10 +50,37 @@
                             </button>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="privateCheckbox">
+                            <span class="checkmark"></span>
+                            プライベートルーム
+                        </label>
+                    </div>
+                    <div class="form-group" id="passwordGroup" style="display: none;">
+                        <label for="passwordInput">パスワード</label>
+                        <input type="password" id="passwordInput" placeholder="ルームのパスワードを入力" autocomplete="off">
+                    </div>
                     <button class="join-button" id="joinButton">
                         <span class="button-text">参加する</span>
                         <span class="button-icon">→</span>
                     </button>
+                </div>
+                
+                <!-- オンラインリスト -->
+                <div class="online-lists">
+                    <div class="online-section">
+                        <h3>🟢 オンラインユーザー</h3>
+                        <div class="online-list" id="onlineUsers">
+                            <div class="empty-online">オンラインユーザーがいません</div>
+                        </div>
+                    </div>
+                    <div class="online-section">
+                        <h3>🏠 アクティブルーム</h3>
+                        <div class="online-list" id="onlineRooms">
+                            <div class="empty-online">アクティブなルームがありません</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -67,7 +94,13 @@
                             <p id="currentUser">ユーザー名</p>
                         </div>
                     </div>
-                    <button class="leave-button" id="leaveButton">退出</button>
+                    <div class="header-stats">
+                        <div class="stat">
+                            <span class="stat-label">ユーザー:</span>
+                            <span id="userCount">1</span>
+                        </div>
+                        <button class="leave-button" id="leaveButton">退出</button>
+                    </div>
                 </div>
 
                 <div class="chat-container">
@@ -100,6 +133,16 @@
                         </div>
                         <div class="input-container">
                             <input type="text" id="inputText2" placeholder="メッセージを入力..." autocomplete="off">
+                        </div>
+                    </div>
+                    
+                    <!-- サイドバー（オンライン情報） -->
+                    <div class="sidebar">
+                        <div class="sidebar-section">
+                            <h4>🟢 ルーム内ユーザー</h4>
+                            <div class="user-list" id="roomUsers">
+                                <div class="empty-sidebar">読み込み中...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
