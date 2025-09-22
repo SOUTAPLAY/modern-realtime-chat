@@ -103,6 +103,10 @@ body {
     border-radius: 50%;
 }
 
+.logo div {
+    border-radius: 50%;
+}
+
 .logo h1 {
     font-size: 1.5rem;
     font-weight: 600;
