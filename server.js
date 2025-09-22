@@ -1,3 +1,4 @@
+// server.js
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -15,8 +16,8 @@ const io = new Server(server, {
   pingTimeout: 20000,
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
 // 静的ファイル配信（リポジトリ直下のindex.html等をそのまま配信）
@@ -43,7 +44,6 @@ function verifyPassword(pw, stored) {
   try {
     const [salt, hash] = stored.split(':');
     const test = crypto.scryptSync(pw, salt, 64).toString('hex');
-    // 長さを固定しつつ比較
     return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
   } catch (error) {
     console.error('Password verification error:', error);
@@ -101,15 +101,13 @@ function leaveCurrentRoom(socket) {
 
 io.on('connection', (socket) => {
   console.log(`New connection: ${socket.id}`);
-  
-  // 初回接続時に現在のオンライン一覧を返す
   sendListsTo(socket);
 
   socket.on('joinRoom', (payload, cb) => {
     try {
       const { name, room, makePrivate = false, password = '' } = payload || {};
       console.log(`joinRoom request from ${socket.id}:`, { name, room, makePrivate });
-      
+
       if (!name || !room) return cb?.({ ok: false, error: '名前と部屋名は必須です' });
       if (name.length > 32 || room.length > 64) return cb?.({ ok: false, error: '入力が長すぎます' });
       if (/^\s*$/.test(name) || /^\s*$/.test(room)) return cb?.({ ok: false, error: '空白のみは不可' });
@@ -130,7 +128,6 @@ io.on('connection', (socket) => {
       // ルーム取得/作成
       let rec = rooms.get(room);
       if (!rec) {
-        // 新規作成
         if (makePrivate && (!password || password.length < 4)) {
           return cb?.({ ok: false, error: 'プライベート部屋は4文字以上のパスワードが必要です' });
         }
@@ -139,7 +136,6 @@ io.on('connection', (socket) => {
         rooms.set(room, rec);
         console.log(`Created new room: ${room} (private: ${rec.private})`);
       } else {
-        // 既存部屋へ参加
         if (rec.private) {
           if (!password) return cb?.({ ok: false, error: 'この部屋はプライベートです。パスワードが必要です' });
           if (!verifyPassword(password, rec.pass)) return cb?.({ ok: false, error: 'パスワードが違います' });
@@ -150,14 +146,16 @@ io.on('connection', (socket) => {
       socket.join(room);
       rec.members.add(socket.id);
       usersBySocket.get(socket.id).room = room;
-      
+
       console.log(`User ${name} (${socket.id}) joined room ${room}`);
 
       cb?.({ ok: true, room, private: rec.private });
+
+      // 入室通知（自分以外）
       socket.to(room).emit('system', { type: 'join', name, room });
 
-      broadcastLists();          // グローバル一覧更新
-      broadcastRoomMembers(room); // 部屋内メンバー更新
+      broadcastLists();
+      broadcastRoomMembers(room);
     } catch (e) {
       console.error('joinRoom error:', e);
       cb?.({ ok: false, error: 'サーバーエラー' });
@@ -169,7 +167,7 @@ io.on('connection', (socket) => {
       const info = usersBySocket.get(socket.id);
       const prevRoom = info?.room || null;
       const name = info?.name || null;
-      
+
       console.log(`User ${name} (${socket.id}) leaving room ${prevRoom}`);
 
       leaveCurrentRoom(socket);
@@ -188,34 +186,30 @@ io.on('connection', (socket) => {
   socket.on('message', (text) => {
     try {
       const info = usersBySocket.get(socket.id);
-      
       if (!info) {
         console.error(`Message from unknown socket: ${socket.id}`);
         return;
       }
-      
       if (!info.room) {
         console.error(`Message from ${info.name} (${socket.id}) but not in room`);
         return;
       }
-      
       const msg = String(text || '').slice(0, 1000);
       if (!msg.trim()) {
         console.log(`Empty message from ${info.name}, ignoring`);
         return;
       }
-      
-      const messageData = { 
-        from: info.name, 
-        text: msg, 
-        ts: Date.now() 
+
+      const messageData = {
+        from: info.name,
+        text: msg,
+        ts: Date.now(),
       };
-      
+
       console.log(`Message from ${info.name} in room ${info.room}:`, msg);
-      
-      // 部屋内の全員にメッセージを送信（送信者も含む）
+
+      // 送信者含め部屋全員へ
       io.to(info.room).emit('message', messageData);
-      
       console.log(`Message broadcasted to room ${info.room}`);
     } catch (e) {
       console.error('message error:', e);
@@ -229,13 +223,12 @@ io.on('connection', (socket) => {
       if (info) {
         const { name, room } = info;
         console.log(`User ${name} disconnected from room ${room}`);
-        
         leaveCurrentRoom(socket);
         usersBySocket.delete(socket.id);
         if (socketByName.get(name) === socket.id) socketByName.delete(name);
         if (room) socket.to(room).emit('system', { type: 'leave', name, room });
       }
-      broadcastLists(); // 即オフライン反映
+      broadcastLists();
     } catch (e) {
       console.error('disconnect error:', e);
     }
@@ -251,10 +244,10 @@ setInterval(() => {
   const stats = {
     connections: usersBySocket.size,
     rooms: rooms.size,
-    users: socketByName.size
+    users: socketByName.size,
   };
   console.log('Server stats:', stats);
-}, 60000); // 1分ごと
+}, 60000);
 
 // Render では動的にポートが割り当てられる
 const PORT = process.env.PORT || 3000;
