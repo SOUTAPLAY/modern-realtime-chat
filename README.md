@@ -1,170 +1,143 @@
-# Modern Chat - リアルタイムチャット
+# Modern Realtime Chat
 
-美しいデザインとモダンなUIを備えたリアルタイムチャットアプリケーションです。
+モダンでスタイリッシュなリアルタイムチャットアプリケーション
 
-## ✨ 特徴
+## 🌟 機能
 
-- **モダンなデザイン**: グラデーションとシャドウを使った洗練されたUI
-- **ダークモード対応**: ライト/ダークモード切り替え機能
-- **レスポンシブデザイン**: PC、タブレット、スマートフォンに対応
-- **PWA対応**: アプリのようにインストール可能
-- **リアルタイム通信**: Socket.IOによる即座なメッセージ同期
-- **データ永続化**: ユーザー設定とチャット履歴の保存
-- **アクセシビリティ**: キーボードナビゲーションとスクリーンリーダー対応
+### ✅ 実装済み機能
+- **リアルタイムチャット**: 2つの独立したメッセージチャンネル
+- **オンラインユーザー一覧**: 接続中のユーザーをリアルタイム表示
+- **アクティブルーム一覧**: 人が在室している公開ルームを表示
+- **プライベートルーム**: パスワード保護されたプライベートルーム
+- **即座のオフライン検知**: ページを閉じると即座にオフライン扱い
+- **空ルーム自動削除**: 最後の人が抜けるとルームが自動削除
+- **ダークモード**: ライト/ダークテーマ切替
+- **レスポンシブデザイン**: モバイル対応
+- **PWA対応**: オフラインキャッシュとインストール可能
 
-## 🚀 デモ
+### 🔒 プライベートルーム機能
+- プライベートルームは公開リストに表示されない
+- 4文字以上のパスワード設定が必須
+- パスワードはハッシュ化して安全に保存
+- 入室時にパスワード認証が必要
 
-[GitHub Pages でライブデモを見る](https://soutaplay.github.io/modern-realtime-chat/)
+### 🟢 オンライン機能
+- **オンラインユーザー**: 現在接続中のユーザーのみ表示
+- **アクティブルーム**: 人がいる公開ルームのみ表示（人数付き）
+- **ルーム内ユーザー**: 同じルーム内のメンバー一覧
+- **リアルタイム更新**: 参加/退出時に即座に更新
 
-## 🛠️ 技術スタック
+## 🚀 Renderでのデプロイ
 
-- **フロントエンド**: HTML5, CSS3, Vanilla JavaScript
-- **リアルタイム通信**: Socket.IO
-- **デザイン**: CSS Grid, Flexbox, CSS Custom Properties
-- **フォント**: Inter (Google Fonts)
-- **PWA**: Service Worker, Web App Manifest
-
-## 📱 機能
-
-### 基本機能
-- ユーザー名とルーム名でチャット参加
-- 2つの独立したメッセージチャンネル
-- リアルタイムメッセージ同期
-- 参加者の入退室通知
-
-### UI/UX機能
-- ダークモード切り替え
-- レスポンシブデザイン
-- スムーズなアニメーション
-- 直感的な操作性
-- 通知システム
-
-### PWA機能
-- オフライン対応
-- アプリとしてインストール可能
-- 高速な読み込み
-- ネイティブアプリのような体験
-
-## 🎨 デザインシステム
-
-### カラーパレット
-- **プライマリ**: グラデーション (#667eea → #764ba2)
-- **セカンダリ**: #f093fb
-- **成功**: #48bb78
-- **警告**: #ed8936
-- **エラー**: #f56565
-
-### タイポグラフィ
-- **フォント**: Inter
-- **見出し**: 600-700 weight
-- **本文**: 400-500 weight
-
-### スペーシング
-- **基本単位**: 0.25rem (4px)
-- **コンポーネント間**: 1.5rem (24px)
-- **セクション間**: 2rem (32px)
-
-## 🔧 開発
-
-### 前提条件
-- モダンなWebブラウザ
-- Socket.IOサーバー（リアルタイム機能用）
-
-### ローカルでの実行
-
-1. リポジトリをクローン
+### 1. リポジトリの準備
 ```bash
+# リポジトリをクローン
 git clone https://github.com/SOUTAPLAY/modern-realtime-chat.git
 cd modern-realtime-chat
+
+# 依存関係をインストール（開発時）
+npm install
+
+# ローカル実行
+npm start
 ```
 
-2. ローカルサーバーで起動
-```bash
-# Python 3の場合
-python -m http.server 8000
+### 2. Renderでの設定
+1. [Render](https://render.com) にアクセス
+2. 新しい「Web Service」を作成
+3. GitHubリポジトリを接続
+4. 以下の設定を入力：
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Environment**: `Node`
 
-# Node.jsの場合
-npx serve .
+### 3. 環境変数（オプション）
+- `NODE_ENV`: `production`（本番環境用）
+- `PORT`: 自動設定（Renderが自動で設定）
 
-# Live Serverの場合
-live-server
-```
+### 4. デプロイ確認
+デプロイ後、以下を確認してください：
+- ✅ アプリにアクセスできる
+- ✅ 複数のタブ/デバイスで同時接続可能
+- ✅ オンラインユーザー一覧が更新される
+- ✅ プライベートルームが作成・参加できる
+- ✅ タブを閉じると即座にオフライン表示
+- ✅ 空になったルームが自動削除される
 
-3. ブラウザで `http://localhost:8000` にアクセス
+## 📱 使い方
 
-### Socket.IOサーバーの設定
+### 基本的な使用方法
+1. **ユーザー名**と**ルーム名**を入力
+2. **プライベートルーム**にしたい場合はチェックを入れてパスワードを設定
+3. 「参加する」ボタンでルームに入室
+4. 2つのメッセージチャンネルでリアルタイムチャット
+5. 右側のサイドバーでルーム内メンバーを確認
 
-リアルタイム機能を有効にするには、Socket.IOサーバーが必要です：
+### プライベートルーム
+1. 「プライベートルーム」にチェック
+2. 4文字以上のパスワードを入力
+3. ルーム作成後、他の人は同じルーム名とパスワードで参加可能
+4. プライベートルームは公開リストに表示されません
 
-```javascript
-// server.js (Node.js + Socket.IO)
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
+### オンライン機能
+- **左側パネル**: 全体のオンラインユーザーとアクティブルーム
+- **右側サイドバー**: 現在のルーム内メンバー
+- **リアルタイム更新**: 参加・退出時に即座に反映
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
+## 🛠 技術仕様
 
-app.use(express.static('public'));
+### フロントエンド
+- **HTML5**: セマンティックマークアップ
+- **CSS3**: CSS変数、グリッドレイアウト、アニメーション
+- **JavaScript**: ES6+、Socket.IOクライアント
+- **PWA**: Service Worker、Web App Manifest
 
-io.on('connection', (socket) => {
-    console.log('User connected');
-    
-    socket.on('joinRoom', (data) => {
-        socket.join(data.room);
-        socket.to(data.room).emit('userJoined', data);
-    });
-    
-    socket.on('sendMessage1', (data) => {
-        io.to(data.room).emit('receiveMessage1', data);
-    });
-    
-    socket.on('sendMessage2', (data) => {
-        io.to(data.room).emit('receiveMessage2', data);
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
-    });
-});
+### バックエンド
+- **Node.js**: ES Modules使用
+- **Express.js**: 静的ファイル配信
+- **Socket.IO**: リアルタイム通信
+- **crypto**: パスワードハッシュ化
 
-server.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
-```
+### セキュリティ
+- パスワードのハッシュ化（scrypt + salt）
+- XSS対策（入力サニタイズ）
+- 入力値検証とサイズ制限
+- レート制限（Socket.IOの設定）
 
-## 📂 プロジェクト構造
+## 📂 ファイル構成
 
 ```
 modern-realtime-chat/
-├── index.html          # メインHTMLファイル
-├── style.css           # スタイルシート
-├── script.js           # JavaScriptロジック
-├── manifest.json       # PWAマニフェスト
-├── sw.js              # Service Worker
-└── README.md          # このファイル
+├── package.json          # Node.js設定
+├── server.js             # Express + Socket.IOサーバー
+├── index.html            # メインHTML
+├── style.css             # スタイルシート
+├── script.js             # フロントエンドJS
+├── manifest.json         # PWA設定
+├── sw.js                 # Service Worker
+└── README.md             # このファイル
 ```
 
-## 🤝 コントリビューション
+## 🔧 開発
 
-1. このリポジトリをフォーク
-2. 機能ブランチを作成 (`git checkout -b feature/AmazingFeature`)
-3. 変更をコミット (`git commit -m 'Add some AmazingFeature'`)
-4. ブランチにプッシュ (`git push origin feature/AmazingFeature`)
-5. プルリクエストを作成
+### ローカル開発
+```bash
+# 開発モード実行
+npm run dev
 
-## 📝 ライセンス
+# 本番モード実行
+npm start
+```
 
-このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
+### カスタマイズ
+- **テーマカラー**: `style.css`の`:root`変数を変更
+- **メッセージ制限**: `server.js`の文字数制限を調整
+- **ルーム機能**: `server.js`で追加機能を実装
 
-## 📞 お問い合わせ
+## 📞 サポート
 
-- GitHub: [@SOUTAPLAY](https://github.com/SOUTAPLAY)
-- プロジェクトリンク: [https://github.com/SOUTAPLAY/modern-realtime-chat](https://github.com/SOUTAPLAY/modern-realtime-chat)
+問題や提案がある場合は、GitHubのIssuesでお知らせください。
 
-## 🙏 謝辞
+---
 
-- [Socket.IO](https://socket.io/) - リアルタイム通信
-- [Inter Font](https://fonts.google.com/specimen/Inter) - 美しいタイポグラフィ
-- [CSS Tricks](https://css-tricks.com/) - デザインインスピレーション
+**Modern Realtime Chat** - リアルタイムコミュニケーションを美しく、簡単に。
