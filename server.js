@@ -107,7 +107,6 @@ try {
 const { name, room, makePrivate = false, password = '' } = payload || {};
 console.log(joinRoom request from ${socket.id}:, { name, room, makePrivate });
 
-text
   if (!name || !room) return cb?.({ ok: false, error: '名前と部屋名は必須です' });
   if (name.length > 32 || room.length > 64) return cb?.({ ok: false, error: '入力が長すぎます' });
   if (/^\s*$/.test(name) || /^\s*$/.test(room)) return cb?.({ ok: false, error: '空白のみは不可' });
@@ -162,7 +161,6 @@ const info = usersBySocket.get(socket.id);
 const prevRoom = info?.room || null;
 const name = info?.name || null;
 
-text
   console.log(`User ${name} (${socket.id}) leaving room ${prevRoom}`);
 
   leaveCurrentRoom(socket);
@@ -186,7 +184,6 @@ if (!info || !info.room) return;
 const msg = String(text || '').slice(0, 1000);
 if (!msg.trim()) return;
 
-text
   const messageData = { from: info.name, text: msg, ts: Date.now() };
   io.to(info.room).emit('message', messageData);
 } catch (e) {
@@ -200,7 +197,6 @@ try {
 const info = usersBySocket.get(socket.id);
 if (!info || !info.room) return;
 
-text
   const text = String(payload?.text ?? '').slice(0, 2000); // 過度な長文ガード
   const channel = String(payload?.channel ?? 'default').slice(0, 32);
 
