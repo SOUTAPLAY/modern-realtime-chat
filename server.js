@@ -108,6 +108,8 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', (payload, cb) => {
     try {
       const { name, room, makePrivate = false, password = '' } = payload || {};
+      console.log(`joinRoom request from ${socket.id}:`, { name, room, makePrivate });
+      
       if (!name || !room) return cb?.({ ok: false, error: '名前と部屋名は必須です' });
       if (name.length > 32 || room.length > 64) return cb?.({ ok: false, error: '入力が長すぎます' });
       if (/^\s*$/.test(name) || /^\s*$/.test(room)) return cb?.({ ok: false, error: '空白のみは不可' });
@@ -135,6 +137,7 @@ io.on('connection', (socket) => {
         rec = { private: !!makePrivate, members: new Set() };
         if (rec.private) rec.pass = hashPassword(password);
         rooms.set(room, rec);
+        console.log(`Created new room: ${room} (private: ${rec.private})`);
       } else {
         // 既存部屋へ参加
         if (rec.private) {
@@ -147,6 +150,8 @@ io.on('connection', (socket) => {
       socket.join(room);
       rec.members.add(socket.id);
       usersBySocket.get(socket.id).room = room;
+      
+      console.log(`User ${name} (${socket.id}) joined room ${room}`);
 
       cb?.({ ok: true, room, private: rec.private });
       socket.to(room).emit('system', { type: 'join', name, room });
@@ -164,6 +169,8 @@ io.on('connection', (socket) => {
       const info = usersBySocket.get(socket.id);
       const prevRoom = info?.room || null;
       const name = info?.name || null;
+      
+      console.log(`User ${name} (${socket.id}) leaving room ${prevRoom}`);
 
       leaveCurrentRoom(socket);
       cb?.({ ok: true });
@@ -181,9 +188,35 @@ io.on('connection', (socket) => {
   socket.on('message', (text) => {
     try {
       const info = usersBySocket.get(socket.id);
-      if (!info || !info.room) return;
+      
+      if (!info) {
+        console.error(`Message from unknown socket: ${socket.id}`);
+        return;
+      }
+      
+      if (!info.room) {
+        console.error(`Message from ${info.name} (${socket.id}) but not in room`);
+        return;
+      }
+      
       const msg = String(text || '').slice(0, 1000);
-      io.to(info.room).emit('message', { from: info.name, text: msg, ts: Date.now() });
+      if (!msg.trim()) {
+        console.log(`Empty message from ${info.name}, ignoring`);
+        return;
+      }
+      
+      const messageData = { 
+        from: info.name, 
+        text: msg, 
+        ts: Date.now() 
+      };
+      
+      console.log(`Message from ${info.name} in room ${info.room}:`, msg);
+      
+      // 部屋内の全員にメッセージを送信（送信者も含む）
+      io.to(info.room).emit('message', messageData);
+      
+      console.log(`Message broadcasted to room ${info.room}`);
     } catch (e) {
       console.error('message error:', e);
     }
@@ -195,6 +228,8 @@ io.on('connection', (socket) => {
       const info = usersBySocket.get(socket.id);
       if (info) {
         const { name, room } = info;
+        console.log(`User ${name} disconnected from room ${room}`);
+        
         leaveCurrentRoom(socket);
         usersBySocket.delete(socket.id);
         if (socketByName.get(name) === socket.id) socketByName.delete(name);
@@ -210,6 +245,16 @@ io.on('connection', (socket) => {
     console.error(`Socket error for ${socket.id}:`, error);
   });
 });
+
+// ステータス情報の定期出力
+setInterval(() => {
+  const stats = {
+    connections: usersBySocket.size,
+    rooms: rooms.size,
+    users: socketByName.size
+  };
+  console.log('Server stats:', stats);
+}, 60000); // 1分ごと
 
 // Render では動的にポートが割り当てられる
 const PORT = process.env.PORT || 3000;
