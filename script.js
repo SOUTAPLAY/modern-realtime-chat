@@ -91,7 +91,6 @@ return;
 joinedRoom = res.room;
 myName = name;
 
-text
 // 画面切替
 connectionPanel.style.display = 'none';
 chatArea.style.display = 'flex';
