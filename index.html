@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Modern realtime chat application with Socket.IO">
 </head>
 <body>
     <div class="app-container">
@@ -21,7 +22,7 @@
                     <h1>Modern Chat</h1>
                 </div>
                 <div class="header-actions">
-                    <button class="theme-toggle" id="themeToggle">
+                    <button class="theme-toggle" id="themeToggle" aria-label="テーマ切替">
                         <span class="theme-icon">🌙</span>
                     </button>
                 </div>
@@ -39,13 +40,13 @@
                     </div>
                     <div class="form-group">
                         <label for="nameInput">ユーザー名</label>
-                        <input type="text" id="nameInput" placeholder="あなたの名前を入力" autocomplete="off">
+                        <input type="text" id="nameInput" placeholder="あなたの名前を入力" autocomplete="off" maxlength="32">
                     </div>
                     <div class="form-group">
                         <label for="roomInput">ルーム名</label>
                         <div class="input-with-toggle">
-                            <input type="text" id="roomInput" placeholder="参加するルーム名" autocomplete="off">
-                            <button class="visibility-toggle" id="visibilityToggle">
+                            <input type="text" id="roomInput" placeholder="参加するルーム名" autocomplete="off" maxlength="64">
+                            <button class="visibility-toggle" id="visibilityToggle" type="button" aria-label="ルーム名表示切替">
                                 <span class="visibility-icon">👁️</span>
                             </button>
                         </div>
@@ -59,9 +60,9 @@
                     </div>
                     <div class="form-group" id="passwordGroup" style="display: none;">
                         <label for="passwordInput">パスワード</label>
-                        <input type="password" id="passwordInput" placeholder="ルームのパスワードを入力" autocomplete="off">
+                        <input type="password" id="passwordInput" placeholder="ルームのパスワードを入力" autocomplete="off" minlength="4">
                     </div>
-                    <button class="join-button" id="joinButton">
+                    <button class="join-button" id="joinButton" type="button">
                         <span class="button-text">参加する</span>
                         <span class="button-icon">→</span>
                     </button>
@@ -99,7 +100,7 @@
                             <span class="stat-label">ユーザー:</span>
                             <span id="userCount">1</span>
                         </div>
-                        <button class="leave-button" id="leaveButton">退出</button>
+                        <button class="leave-button" id="leaveButton" type="button">退出</button>
                     </div>
                 </div>
 
@@ -116,7 +117,7 @@
                             </div>
                         </div>
                         <div class="input-container">
-                            <input type="text" id="inputText1" placeholder="メッセージを入力..." autocomplete="off">
+                            <input type="text" id="inputText1" placeholder="メッセージを入力..." autocomplete="off" maxlength="1000">
                         </div>
                     </div>
 
@@ -132,7 +133,7 @@
                             </div>
                         </div>
                         <div class="input-container">
-                            <input type="text" id="inputText2" placeholder="メッセージを入力..." autocomplete="off">
+                            <input type="text" id="inputText2" placeholder="メッセージを入力..." autocomplete="off" maxlength="1000">
                         </div>
                     </div>
                     
@@ -150,8 +151,23 @@
         </main>
     </div>
 
-    <!-- Socket.IO (CDN版を使用) -->
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-    <script src="script.js"></script>
+    <!-- Socket.IOとスクリプトの読み込み -->
+    <script>
+        // Socket.IOの読み込みを確認
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            // Socket.IOの存在確認
+            if (typeof io === 'undefined') {
+                console.error('Socket.IO not loaded');
+                alert('アプリケーションの読み込みに失敗しました。ページを再読み込みしてください。');
+                return;
+            }
+            
+            console.log('Socket.IO loaded successfully');
+        });
+    </script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" onerror="console.error('Failed to load Socket.IO from CDN')"></script>
+    <script src="script.js" onerror="console.error('Failed to load main script')"></script>
 </body>
 </html>
