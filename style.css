@@ -100,7 +100,8 @@ body {
 }
 
 .logo-icon {
-
+    max-width: 10%;
+    max-height: 10%;
 }
 
 .logo h1 {
