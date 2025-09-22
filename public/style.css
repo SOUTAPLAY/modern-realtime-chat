@@ -1,0 +1,13 @@
+:root { color-scheme: light dark; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
+header { padding: 12px 16px; border-bottom: 1px solid #ddd; }
+.join { display: flex; gap: 8px; padding: 8px 16px; flex-wrap: wrap; align-items: center; }
+.join input[type="text"], .join input[type="password"], .join input:not([type]) { padding: 6px 8px; }
+.error { color: #d33; margin-left: 8px; }
+main { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 110px); }
+.sidebar { border-right: 1px solid #ddd; padding: 12px; overflow: auto; }
+.chat { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+#status { padding: 8px 12px; border-bottom: 1px solid #ddd; }
+#messages { list-style: none; margin: 0; padding: 12px; overflow: auto; }
+.input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #ddd; }
+.input input { flex: 1; padding: 8px; }
