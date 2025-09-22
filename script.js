@@ -92,7 +92,7 @@ function setupEventListeners() {
         if (e.key === 'Enter') handleJoinRoom();
     });
     
-    // メッセージ入力
+    // メッセージ入力（リアルタイム更新）
     elements.inputText1.addEventListener('input', () => handleMessageInput('sendMessage1', elements.inputText1.value));
     elements.inputText2.addEventListener('input', () => handleMessageInput('sendMessage2', elements.inputText2.value));
     
@@ -118,13 +118,13 @@ function setupSocketListeners() {
     
     state.socket.on('receiveMessage1', (data) => {
         if (data.room === state.currentRoom) {
-            displayMessage(elements.messageDisplay1, data.name, data.message);
+            displayCurrentMessage(elements.messageDisplay1, data.name, data.message);
         }
     });
     
     state.socket.on('receiveMessage2', (data) => {
         if (data.room === state.currentRoom) {
-            displayMessage(elements.messageDisplay2, data.name, data.message);
+            displayCurrentMessage(elements.messageDisplay2, data.name, data.message);
         }
     });
 }
@@ -160,8 +160,8 @@ function handleLeaveRoom() {
     state.username = '';
     
     // チャットエリアをクリア
-    clearMessageDisplay(elements.messageDisplay1);
-    clearMessageDisplay(elements.messageDisplay2);
+    resetMessageDisplay(elements.messageDisplay1);
+    resetMessageDisplay(elements.messageDisplay2);
     elements.inputText1.value = '';
     elements.inputText2.value = '';
     
@@ -172,9 +172,16 @@ function handleLeaveRoom() {
     showNotification('チャットルームから退出しました', 'info');
 }
 
-// メッセージ入力処理
+// メッセージ入力処理（リアルタイム）
 function handleMessageInput(event, message) {
-    if (state.currentRoom && state.username && message.trim()) {
+    if (state.currentRoom && state.username) {
+        // 空の場合は空状態に戻す
+        if (!message.trim()) {
+            const displayElement = event === 'sendMessage1' ? elements.messageDisplay1 : elements.messageDisplay2;
+            resetMessageDisplay(displayElement);
+            return;
+        }
+        
         state.socket.emit(event, {
             room: state.currentRoom,
             name: state.username,
@@ -183,27 +190,19 @@ function handleMessageInput(event, message) {
     }
 }
 
-// メッセージ表示
-function displayMessage(container, author, content) {
-    // 空の状態表示を削除
-    const emptyState = container.querySelector('.empty-state');
-    if (emptyState) {
-        emptyState.remove();
-    }
-    
-    const messageElement = document.createElement('div');
-    messageElement.className = 'message';
-    messageElement.innerHTML = `
-        <div class="message-author">${escapeHtml(author)}</div>
-        <div class="message-content">${escapeHtml(content)}</div>
+// 現在のメッセージを表示（履歴なし）
+function displayCurrentMessage(container, author, content) {
+    // 既存の内容をクリアして新しいメッセージのみ表示
+    container.innerHTML = `
+        <div class="message">
+            <div class="message-author">${escapeHtml(author)}</div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        </div>
     `;
-    
-    container.appendChild(messageElement);
-    container.scrollTop = container.scrollHeight;
 }
 
-// メッセージ表示をクリア
-function clearMessageDisplay(container) {
+// メッセージ表示を空状態にリセット
+function resetMessageDisplay(container) {
     container.innerHTML = `
         <div class="empty-state">
             <div class="empty-icon">💭</div>
